@@ -10,7 +10,7 @@
 		<Property name="log_default_level">${sys:log.defaultLevel:-info}</Property>
 		<Property name="log_std_level">${sys:log.stdLevel:-info}</Property>
 		<Property name="log_sql_level">${sys:log.sqlLevel:-debug}</Property>
-		<Property name="log_third_level">${sys:log.thirdLevel:-info}</Property>
+		<Property name="log_third_level">${sys:log.thirdLevel:-error}</Property>
 
 		<Property name="log_include_location">${sys:log.includeLocation:-true}</Property>
 		<Property name="log_app_name">${sys:log.appName:-log4jdbc}</Property>
@@ -87,6 +87,16 @@
 		</Logger>
 
 		<Logger name="net.sf.log4jdbc" level="${log_std_level}" additivity="true" includeLocation="${log_include_location}">
+		</Logger>
+		<Logger name="jdbc.sqlonly" level="error">
+		</Logger>
+		<Logger name="jdbc.sqltiming" level="debug">
+		</Logger>
+		<Logger name="jdbc.audit" level="error">
+		</Logger>
+		<Logger name="jdbc.resultset" level="error">
+		</Logger>
+		<Logger name="jdbc.connection" level="info">
 		</Logger>
 
 	</Loggers>

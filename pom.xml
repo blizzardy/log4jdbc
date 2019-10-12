@@ -84,14 +84,38 @@
 		<dependency>
 			<groupId>junit</groupId>
 			<artifactId>junit</artifactId>
-			<scope>test</scope>
 		</dependency>
 		<dependency>
 			<groupId>org.mockito</groupId>
 			<artifactId>mockito-core</artifactId>
-			<scope>test</scope>
+		</dependency>
+		<dependency>
+			<groupId>org.hsqldb</groupId>
+			<artifactId>hsqldb</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>com.h2database</groupId>
+			<artifactId>h2</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>org.dbunit</groupId>
+			<artifactId>dbunit</artifactId>
 		</dependency>
 		<!-- endregion -->
+
+		<dependency>
+			<groupId>com.mchange</groupId>
+			<artifactId>c3p0</artifactId>
+			<version>0.9.5.4</version>
+			<scope>test</scope>
+		</dependency>
+		<dependency>
+			<groupId>com.alibaba</groupId>
+			<artifactId>druid</artifactId>
+			<version>1.1.14</version>
+			<scope>test</scope>
+		</dependency>
+
 	</dependencies>
 	<!-- endregion -->
 
@@ -222,6 +246,7 @@
 				<plugin>
 					<groupId>org.apache.maven.plugins</groupId>
 					<artifactId>maven-gpg-plugin</artifactId>
+					<version>1.6</version>
 					<executions>
 						<execution>
 							<phase>verify</phase>
@@ -273,7 +298,7 @@
 					<artifactId>maven-surefire-plugin</artifactId>
 					<version>2.20</version>
 					<configuration>
-						<groups>**.FastTests</groups>
+						<groups>org.junit.category.FastTests</groups>
 						<includes>
 							<include>**/Test*.java</include>
 							<include>**/*Test.java</include>
@@ -288,6 +313,11 @@
 
 		<!-- region plugins -->
 		<plugins>
+			<plugin>
+				<groupId>org.apache.maven.plugins</groupId>
+				<artifactId>maven-help-plugin</artifactId>
+				<version>3.2.0</version>
+			</plugin>
 			<plugin>
 				<groupId>com.rimerosolutions.maven.plugins</groupId>
 				<artifactId>wrapper-maven-plugin</artifactId>
@@ -484,9 +514,6 @@
 		<!-- region [oss] -->
 		<profile>
 			<id>oss</id>
-			<properties>
-				<maven.test.skip>true</maven.test.skip>
-			</properties>
 			<build>
 				<plugins>
 					<plugin>
@@ -550,13 +577,9 @@
 		<!-- region [io] -->
 		<profile>
 			<id>io</id>
-			<properties>
-				<maven.test.skip>true</maven.test.skip>
-			</properties>
 			<activation>
 				<activeByDefault>true</activeByDefault>
 			</activation>
-
 			<!-- region [repositories] -->
 			<repositories>
 				<repository>
