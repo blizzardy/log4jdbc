@@ -1,0 +1,93 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--log4j2内部日志级别: OFF > FATAL > ERROR > WARN > INFO > DEBUG > TRACE > ALL -->
+<Configuration status="error" monitorInterval="3600">
+	<!--
+	不需要手动配置异步, 通过命令行或配置文件(log4j2.component.properties)开启全局异步日志
+	-DLog4jContextSelector=org.apache.logging.log4j.core.async.AsyncLoggerContextSelector
+	-->
+	<!-- 全局参数 -->
+	<Properties>
+		<Property name="log_default_level">${sys:log.defaultLevel:-info}</Property>
+		<Property name="log_std_level">${sys:log.stdLevel:-info}</Property>
+		<Property name="log_sql_level">${sys:log.sqlLevel:-debug}</Property>
+		<Property name="log_third_level">${sys:log.thirdLevel:-info}</Property>
+
+		<Property name="log_include_location">${sys:log.includeLocation:-true}</Property>
+		<Property name="log_app_name">${sys:log.appName:-log4jdbc}</Property>
+		<Property name="log_base_dir">${sys:user.home:-/var/log/app}/${sys:log.basedir:-logs}</Property>
+
+		<Property name="log_dir">${log_base_dir}/${log_app_name}</Property>
+		<Property name="log_file_prefix">${log_app_name}</Property>
+		<property name="log_charset">UTF-8</property>
+		<Property name="max_file_size">300MB</Property>
+		<Property name="log_pattern_prefix">[%d{yyyy-MM-dd HH:mm:ss.SSS}] [%t] [%-5p]</Property>
+		<!--<Property name="log_pattern_location">%c{3.}.%M(%F:%L)</Property>-->
+		<Property name="log_pattern_location">%c.%M(%F:%L)</Property>
+		<Property name="log_pattern">${log_pattern_prefix} [${log_pattern_location}] %x %X - %m%n</Property>
+		<Property name="log_pattern_simple">${log_pattern_prefix} [%c] %x %X - %m%n</Property>
+		<!--<Property name="log_pattern">[%d{yyyy-MM-dd HH:mm:ss.SSS}] [%t] [%-5p] [%l] %x %X - %m%n</Property>-->
+		<!--<Property name="log_pattern">[%d{yyyy-MM-dd HH:mm:ss}] [%t] [%-5p] [%C{12}.%M(%F:%L)] [%X{user}] - %m%n</Property>-->
+		<!--<Property name="log_pattern">[%d{yyyy-MM-dd HH:mm:ss}] [%t] [%-5p] [%c] [%X] %m%n</Property>-->
+	</Properties>
+	<Appenders>
+		<!-- 用来控制台输出 -->
+		<Console name="console" target="SYSTEM_OUT">
+			<PatternLayout pattern="${log_pattern}"/>
+		</Console>
+		<Console name="simpleConsole" target="SYSTEM_OUT">
+			<PatternLayout pattern="${log_pattern_simple}"/>
+		</Console>
+
+		<RollingRandomAccessFile name="traceLog"
+			filePattern="${log_dir}/%d{yyyy-MM-dd}/${log_file_prefix}-all-%d{yyyyMMdd-HH}.%i.log.gz"
+			fileName="${log_dir}/${log_file_prefix}-all.log"
+			immediateFlush="false">
+			<PatternLayout charset="${log_charset}" pattern="${log_pattern}"/>
+			<Policies>
+				<TimeBasedTriggeringPolicy modulate="true" interval="1"/>
+				<SizeBaseDTriggeringPolicy size="${max_file_size}"/>
+			</Policies>
+			<DefaultRolloverStrategy max="1000"/>
+			<Filters>
+				<!-- 显示所有信息 -->
+				<ThresholdFilter onMismatch="DENY" onMatch="ACCEPT" level="TRACE"/>
+			</Filters>
+		</RollingRandomAccessFile>
+
+		<RollingRandomAccessFile name="errorLog"
+			filePattern="${log_dir}/%d{yyyy-MM-dd}/${log_file_prefix}-error-%d{yyyyMMdd-HH}.%i.log.gz"
+			fileName="${log_dir}/${log_file_prefix}-error.log"
+			immediateFlush="false">
+			<PatternLayout charset="${log_charset}" pattern="${log_pattern}"/>
+			<Policies>
+				<TimeBasedTriggeringPolicy modulate="true" interval="1"/>
+				<SizeBaseDTriggeringPolicy size="${max_file_size}"/>
+			</Policies>
+			<DefaultRolloverStrategy max="1000"/>
+			<Filters>
+				<!-- 只显示error信息 -->
+				<ThresholdFilter onMismatch="DENY" onMatch="ACCEPT" level="ERROR"/>
+			</Filters>
+		</RollingRandomAccessFile>
+	</Appenders>
+	<Loggers>
+		<Root level="${log_default_level}" includeLocation="${log_include_location}">
+			<AppenderRef ref="traceLog"/>
+			<AppenderRef ref="errorLog"/>
+			<AppenderRef ref="console"/>
+		</Root>
+
+		<Logger name="org" level="${log_third_level}" additivity="true" includeLocation="${log_include_location}">
+		</Logger>
+		<Logger name="com" level="${log_third_level}" additivity="true" includeLocation="${log_include_location}">
+		</Logger>
+		<Logger name="net" level="${log_third_level}" additivity="true" includeLocation="${log_include_location}">
+		</Logger>
+		<Logger name="org.apache" level="${log_third_level}" additivity="true" includeLocation="${log_include_location}">
+		</Logger>
+
+		<Logger name="net.sf.log4jdbc" level="${log_std_level}" additivity="true" includeLocation="${log_include_location}">
+		</Logger>
+
+	</Loggers>
+</Configuration>
