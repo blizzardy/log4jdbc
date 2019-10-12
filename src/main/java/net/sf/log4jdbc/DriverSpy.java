@@ -1,12 +1,12 @@
 /**
  * Copyright 2007-2015 Arthur Blake
- *
+ * <p>
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
+ * <p>
+ * http://www.apache.org/licenses/LICENSE-2.0
+ * <p>
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -17,19 +17,9 @@ package net.sf.log4jdbc;
 
 import java.io.IOException;
 import java.io.InputStream;
-import java.sql.Connection;
-import java.sql.DatabaseMetaData;
-import java.sql.Driver;
-import java.sql.DriverManager;
-import java.sql.DriverPropertyInfo;
-import java.sql.SQLException;
-import java.util.Enumeration;
-import java.util.HashMap;
-import java.util.Iterator;
-import java.util.Map;
-import java.util.Properties;
-import java.util.Set;
-import java.util.TreeSet;
+import java.sql.*;
+import java.util.*;
+import java.util.logging.Logger;
 
 /**
  * A JDBC driver which is a facade that delegates to one or more real underlying
@@ -87,81 +77,61 @@ import java.util.TreeSet;
  * time. This will not usually be a problem, since the driver is retrieved by
  * it's URL from the DriverManager in the first place (thus establishing an
  * underlying real driver), and in most applications their is only one database.
- * 
+ *
  * @author Arthur Blake
+ * @author Qt
  */
-public class DriverSpy implements Driver
-{
-	/**
-	 * The last actual, underlying driver that was requested via a URL.
-	 */
-	private Driver lastUnderlyingDriverRequested;
-
-	/**
-	 * Maps driver class names to RdbmsSpecifics objects for each kind of
-	 * database.
-	 */
-	private static Map rdbmsSpecifics;
-
+public class DriverSpy implements Driver {
 	static final SpyLogDelegator log = SpyLogFactory.getSpyLogDelegator();
-
 	/**
 	 * Optional package prefix to use for finding application generating point of
 	 * SQL.
 	 */
 	static String DebugStackPrefix;
-
 	/**
 	 * Flag to indicate debug trace info should be from the calling application
 	 * point of view (true if DebugStackPrefix is set.)
 	 */
 	static boolean TraceFromApplication;
-
 	/**
 	 * Flag to indicate if a warning should be shown if SQL takes more than
 	 * SqlTimingWarnThresholdMsec milliseconds to run. See below.
 	 */
 	static boolean SqlTimingWarnThresholdEnabled;
-
 	/**
 	 * An amount of time in milliseconds for which SQL that executed taking this
 	 * long or more to run shall cause a warning message to be generated on the
 	 * SQL timing logger.
-	 * 
+	 * <p>
 	 * This threshold will <i>ONLY</i> be used if SqlTimingWarnThresholdEnabled is
 	 * true.
 	 */
 	static long SqlTimingWarnThresholdMsec;
-
 	/**
 	 * Flag to indicate if an error should be shown if SQL takes more than
 	 * SqlTimingErrorThresholdMsec milliseconds to run. See below.
 	 */
 	static boolean SqlTimingErrorThresholdEnabled;
-
 	/**
 	 * An amount of time in milliseconds for which SQL that executed taking this
 	 * long or more to run shall cause an error message to be generated on the SQL
 	 * timing logger.
-	 * 
+	 * <p>
 	 * This threshold will <i>ONLY</i> be used if SqlTimingErrorThresholdEnabled
 	 * is true.
 	 */
 	static long SqlTimingErrorThresholdMsec;
-
 	/**
 	 * When dumping boolean values, dump them as 'true' or 'false'. If this option
 	 * is not set, they will be dumped as 1 or 0 as many databases do not have a
 	 * boolean type, and this allows for more portable sql dumping.
 	 */
 	static boolean DumpBooleanAsTrueFalse;
-
 	/**
 	 * When dumping SQL, if this is greater than 0, than the SQL will be broken up
 	 * into lines that are no longer than this value.
 	 */
 	static int DumpSqlMaxLineLength;
-
 	/**
 	 * If this is true, display a special warning in the log along with the SQL
 	 * when the application uses a Statement (as opposed to a PreparedStatement.)
@@ -169,7 +139,6 @@ public class DriverSpy implements Driver
 	 * performance and/or security problems.
 	 */
 	static boolean StatementUsageWarn;
-
 	/**
 	 * Options to more finely control which types of SQL statements will be
 	 * dumped, when dumping SQL. By default all 5 of the following will be true.
@@ -181,45 +150,37 @@ public class DriverSpy implements Driver
 	static boolean DumpSqlUpdate;
 	static boolean DumpSqlDelete;
 	static boolean DumpSqlCreate;
-
 	// only true if one ore more of the above 4 flags are false.
 	static boolean DumpSqlFilteringOn;
-
 	/**
 	 * If true, add a semilcolon to the end of each SQL dump.
 	 */
 	static boolean DumpSqlAddSemicolon;
-
 	/**
 	 * If dumping in debug mode, dump the full stack trace. This will result in a
 	 * VERY voluminous output, but can be very useful under some circumstances.
 	 */
 	static boolean DumpFullDebugStackTrace;
-
 	/**
 	 * Attempt to Automatically load a set of popular JDBC drivers?
 	 */
 	static boolean AutoLoadPopularDrivers;
-
 	/**
 	 * Trim SQL before logging it?
 	 */
 	static boolean TrimSql;
-
 	/**
 	 * Trim SQL line by line (for beginning of line, only trimming consistent
 	 * white space) If this option is selected, the TrimSql option will be
 	 * ignored.
 	 */
 	static boolean TrimSqlLines;
-
 	/**
 	 * Remove extra Lines in the SQL that consist of only white space? Only when 2
 	 * or more lines in a row like this occur, will the extra lines (beyond 1) be
 	 * removed.
 	 */
 	static boolean TrimExtraBlankLinesInSql;
-
 	/**
 	 * Coldfusion typically calls PreparedStatement.getGeneratedKeys() after every
 	 * SQL update call, even if it's not warranted. This typically produces an
@@ -227,172 +188,36 @@ public class DriverSpy implements Driver
 	 * exception generated by this method is also ignored by log4jdbc.
 	 */
 	static boolean SuppressGetGeneratedKeysException;
-
+	static RdbmsSpecifics defaultRdbmsSpecifics = new RdbmsSpecifics();
 	/**
-	 * Get a Long option from a property and log a debug message about this.
-	 * 
-	 * @param props Properties to get option from.
-	 * @param propName property key.
-	 * 
-	 * @return the value of that property key, converted to a Long. Or null if not
-	 *         defined or is invalid.
+	 * Maps driver class names to RdbmsSpecifics objects for each kind of
+	 * database.
 	 */
-	private static Long getLongOption(Properties props, String propName)
-	{
-		String propValue = props.getProperty(propName);
-		Long longPropValue = null;
-		if (propValue == null)
-		{
-			log.debug("x " + propName + " is not defined");
-		}
-		else
-		{
-			try
-			{
-				longPropValue = new Long(Long.parseLong(propValue));
-				log.debug("  " + propName + " = " + longPropValue);
-			}
-			catch (NumberFormatException n)
-			{
-				log.debug("x " + propName + " \"" + propValue +
-					"\" is not a valid number");
-			}
-		}
-		return longPropValue;
-	}
+	private static Map rdbmsSpecifics;
 
-	/**
-	 * Get a Long option from a property and log a debug message about this.
-	 * 
-	 * @param props Properties to get option from.
-	 * @param propName property key.
-	 * 
-	 * @return the value of that property key, converted to a Long. Or null if not
-	 *         defined or is invalid.
-	 */
-	private static Long getLongOption(Properties props, String propName,
-		long defaultValue)
-	{
-		String propValue = props.getProperty(propName);
-		Long longPropValue;
-		if (propValue == null)
-		{
-			log.debug("x " + propName + " is not defined (using default of " +
-				defaultValue + ")");
-			longPropValue = new Long(defaultValue);
-		}
-		else
-		{
-			try
-			{
-				longPropValue = new Long(Long.parseLong(propValue));
-				log.debug("  " + propName + " = " + longPropValue);
-			}
-			catch (NumberFormatException n)
-			{
-				log.debug("x " + propName + " \"" + propValue +
-					"\" is not a valid number (using default of " + defaultValue + ")");
-				longPropValue = new Long(defaultValue);
-			}
-		}
-		return longPropValue;
-	}
-
-	/**
-	 * Get a String option from a property and log a debug message about this.
-	 * 
-	 * @param props Properties to get option from.
-	 * @param propName property key.
-	 * @return the value of that property key.
-	 */
-	private static String getStringOption(Properties props, String propName)
-	{
-		String propValue = props.getProperty(propName);
-		if (propValue == null || propValue.length() == 0)
-		{
-			log.debug("x " + propName + " is not defined");
-			propValue = null; // force to null, even if empty String
-		}
-		else
-		{
-			log.debug("  " + propName + " = " + propValue);
-		}
-		return propValue;
-	}
-
-	/**
-	 * Get a boolean option from a property and log a debug message about this.
-	 * 
-	 * @param props Properties to get option from.
-	 * @param propName property name to get.
-	 * @param defaultValue default value to use if undefined.
-	 * 
-	 * @return boolean value found in property, or defaultValue if no property
-	 *         found.
-	 */
-	private static boolean getBooleanOption(Properties props, String propName,
-		boolean defaultValue)
-	{
-		String propValue = props.getProperty(propName);
-		boolean val;
-		if (propValue == null)
-		{
-			log.debug("x " + propName + " is not defined (using default value " +
-				defaultValue + ")");
-			return defaultValue;
-		}
-		else
-		{
-			propValue = propValue.trim().toLowerCase();
-			if (propValue.length() == 0)
-			{
-				val = defaultValue;
-			}
-			else
-			{
-				val = "true".equals(propValue) || "yes".equals(propValue) ||
-					"on".equals(propValue);
-			}
-		}
-		log.debug("  " + propName + " = " + val);
-		return val;
-	}
-
-	static
-	{
+	static {
 		log.debug("... log4jdbc initializing ...");
 
 		InputStream propStream = DriverSpy.class
 			.getResourceAsStream("/log4jdbc.properties");
 
 		Properties props = new Properties(System.getProperties());
-		if (propStream != null)
-		{
-			try
-			{
+		if (propStream != null) {
+			try {
 				props.load(propStream);
-			}
-			catch (IOException e)
-			{
+			} catch (IOException e) {
 				log.debug("ERROR!  io exception loading " +
 					"log4jdbc.properties from classpath: " + e.getMessage());
-			}
-			finally
-			{
-				try
-				{
+			} finally {
+				try {
 					propStream.close();
-				}
-				catch (IOException e)
-				{
+				} catch (IOException e) {
 					log.debug("ERROR!  io exception closing property file stream: " +
 						e.getMessage());
 				}
 			}
 			log.debug("  log4jdbc.properties loaded from classpath");
-		}
-		else
-		{
+		} else {
 			log.debug("  log4jdbc.properties not found on classpath");
 		}
 
@@ -402,15 +227,13 @@ public class DriverSpy implements Driver
 
 		Long thresh = getLongOption(props, "log4jdbc.sqltiming.warn.threshold");
 		SqlTimingWarnThresholdEnabled = (thresh != null);
-		if (SqlTimingWarnThresholdEnabled)
-		{
+		if (SqlTimingWarnThresholdEnabled) {
 			SqlTimingWarnThresholdMsec = thresh.longValue();
 		}
 
 		thresh = getLongOption(props, "log4jdbc.sqltiming.error.threshold");
 		SqlTimingErrorThresholdEnabled = (thresh != null);
-		if (SqlTimingErrorThresholdEnabled)
-		{
+		if (SqlTimingErrorThresholdEnabled) {
 			SqlTimingErrorThresholdMsec = thresh.longValue();
 		}
 
@@ -443,8 +266,7 @@ public class DriverSpy implements Driver
 
 		TrimSql = getBooleanOption(props, "log4jdbc.trim.sql", true);
 		TrimSqlLines = getBooleanOption(props, "log4jdbc.trim.sql.lines", false);
-		if (TrimSqlLines && TrimSql)
-		{
+		if (TrimSqlLines && TrimSql) {
 			log.debug("NOTE, log4jdbc.trim.sql setting ignored because "
 				+ "log4jdbc.trim.sql.lines is enabled.");
 		}
@@ -461,8 +283,7 @@ public class DriverSpy implements Driver
 
 		Set subDrivers = new TreeSet();
 
-		if (AutoLoadPopularDrivers)
-		{
+		if (AutoLoadPopularDrivers) {
 			subDrivers.add("oracle.jdbc.driver.OracleDriver");
 			subDrivers.add("oracle.jdbc.OracleDriver");
 			subDrivers.add("com.sybase.jdbc2.jdbc.SybDriver");
@@ -487,23 +308,18 @@ public class DriverSpy implements Driver
 		// look for additional driver specified in properties
 		String moreDrivers = getStringOption(props, "log4jdbc.drivers");
 
-		if (moreDrivers != null)
-		{
+		if (moreDrivers != null) {
 			String[] moreDriversArr = moreDrivers.split(",");
 
-			for (int i = 0; i < moreDriversArr.length; i++)
-			{
+			for (int i = 0; i < moreDriversArr.length; i++) {
 				subDrivers.add(moreDriversArr[i]);
 				log.debug("    will look for specific driver " + moreDriversArr[i]);
 			}
 		}
 
-		try
-		{
+		try {
 			DriverManager.registerDriver(new DriverSpy());
-		}
-		catch (SQLException s)
-		{
+		} catch (SQLException s) {
 			// this exception should never be thrown, JDBC just defines it
 			// for completeness
 			throw (RuntimeException) new RuntimeException(
@@ -513,22 +329,17 @@ public class DriverSpy implements Driver
 		// instantiate all the supported drivers and remove
 		// those not found
 		String driverClass;
-		for (Iterator i = subDrivers.iterator(); i.hasNext();)
-		{
+		for (Iterator i = subDrivers.iterator(); i.hasNext(); ) {
 			driverClass = (String) i.next();
-			try
-			{
+			try {
 				Class.forName(driverClass);
 				log.debug("  FOUND DRIVER " + driverClass);
-			}
-			catch (Throwable c)
-			{
+			} catch (Throwable c) {
 				i.remove();
 			}
 		}
 
-		if (subDrivers.size() == 0)
-		{
+		if (subDrivers.size() == 0) {
 			log.debug("WARNING!  "
 				+ "log4jdbc couldn't find any underlying jdbc drivers.");
 		}
@@ -550,24 +361,131 @@ public class DriverSpy implements Driver
 		log.debug("... log4jdbc initialized! ...");
 	}
 
-	static RdbmsSpecifics defaultRdbmsSpecifics = new RdbmsSpecifics();
+	/**
+	 * The last actual, underlying driver that was requested via a URL.
+	 */
+	private Driver lastUnderlyingDriverRequested;
+
+	/**
+	 * Default constructor.
+	 */
+	public DriverSpy() {
+	}
+
+	/**
+	 * Get a Long option from a property and log a debug message about this.
+	 *
+	 * @param props    Properties to get option from.
+	 * @param propName property key.
+	 * @return the value of that property key, converted to a Long. Or null if not
+	 * defined or is invalid.
+	 */
+	private static Long getLongOption(Properties props, String propName) {
+		String propValue = props.getProperty(propName);
+		Long longPropValue = null;
+		if (propValue == null) {
+			log.debug("x " + propName + " is not defined");
+		} else {
+			try {
+				longPropValue = new Long(Long.parseLong(propValue));
+				log.debug("  " + propName + " = " + longPropValue);
+			} catch (NumberFormatException n) {
+				log.debug("x " + propName + " \"" + propValue +
+					"\" is not a valid number");
+			}
+		}
+		return longPropValue;
+	}
+
+	/**
+	 * Get a Long option from a property and log a debug message about this.
+	 *
+	 * @param props    Properties to get option from.
+	 * @param propName property key.
+	 * @return the value of that property key, converted to a Long. Or null if not
+	 * defined or is invalid.
+	 */
+	private static Long getLongOption(Properties props, String propName,
+		long defaultValue) {
+		String propValue = props.getProperty(propName);
+		Long longPropValue;
+		if (propValue == null) {
+			log.debug("x " + propName + " is not defined (using default of " +
+				defaultValue + ")");
+			longPropValue = new Long(defaultValue);
+		} else {
+			try {
+				longPropValue = new Long(Long.parseLong(propValue));
+				log.debug("  " + propName + " = " + longPropValue);
+			} catch (NumberFormatException n) {
+				log.debug("x " + propName + " \"" + propValue +
+					"\" is not a valid number (using default of " + defaultValue + ")");
+				longPropValue = new Long(defaultValue);
+			}
+		}
+		return longPropValue;
+	}
+
+	/**
+	 * Get a String option from a property and log a debug message about this.
+	 *
+	 * @param props    Properties to get option from.
+	 * @param propName property key.
+	 * @return the value of that property key.
+	 */
+	private static String getStringOption(Properties props, String propName) {
+		String propValue = props.getProperty(propName);
+		if (propValue == null || propValue.length() == 0) {
+			log.debug("x " + propName + " is not defined");
+			propValue = null; // force to null, even if empty String
+		} else {
+			log.debug("  " + propName + " = " + propValue);
+		}
+		return propValue;
+	}
+
+	/**
+	 * Get a boolean option from a property and log a debug message about this.
+	 *
+	 * @param props        Properties to get option from.
+	 * @param propName     property name to get.
+	 * @param defaultValue default value to use if undefined.
+	 * @return boolean value found in property, or defaultValue if no property
+	 * found.
+	 */
+	private static boolean getBooleanOption(Properties props, String propName,
+		boolean defaultValue) {
+		String propValue = props.getProperty(propName);
+		boolean val;
+		if (propValue == null) {
+			log.debug("x " + propName + " is not defined (using default value " +
+				defaultValue + ")");
+			return defaultValue;
+		} else {
+			propValue = propValue.trim().toLowerCase();
+			if (propValue.length() == 0) {
+				val = defaultValue;
+			} else {
+				val = "true".equals(propValue) || "yes".equals(propValue) ||
+					"on".equals(propValue);
+			}
+		}
+		log.debug("  " + propName + " = " + val);
+		return val;
+	}
 
 	/**
 	 * Get the RdbmsSpecifics object for a given Connection.
-	 * 
+	 *
 	 * @param conn JDBC connection to get RdbmsSpecifics for.
 	 * @return RdbmsSpecifics for the given connection.
 	 */
-	static RdbmsSpecifics getRdbmsSpecifics(Connection conn)
-	{
+	static RdbmsSpecifics getRdbmsSpecifics(Connection conn) {
 		String driverName = "";
-		try
-		{
+		try {
 			DatabaseMetaData dbm = conn.getMetaData();
 			driverName = dbm.getDriverName();
-		}
-		catch (SQLException s)
-		{
+		} catch (SQLException s) {
 			// silently fail
 		}
 
@@ -575,38 +493,25 @@ public class DriverSpy implements Driver
 
 		RdbmsSpecifics r = (RdbmsSpecifics) rdbmsSpecifics.get(driverName);
 
-		if (r == null)
-		{
+		if (r == null) {
 			return defaultRdbmsSpecifics;
-		}
-		else
-		{
+		} else {
 			return r;
 		}
-	}
-
-	/**
-	 * Default constructor.
-	 */
-	public DriverSpy()
-	{
 	}
 
 	/**
 	 * Get the major version of the driver. This call will be delegated to the
 	 * underlying driver that is being spied upon (if there is no underlying
 	 * driver found, then 1 will be returned.)
-	 * 
+	 *
 	 * @return the major version of the JDBC driver.
 	 */
-	public int getMajorVersion()
-	{
-		if (lastUnderlyingDriverRequested == null)
-		{
+	@Override
+	public int getMajorVersion() {
+		if (lastUnderlyingDriverRequested == null) {
 			return 1;
-		}
-		else
-		{
+		} else {
 			return lastUnderlyingDriverRequested.getMajorVersion();
 		}
 	}
@@ -615,17 +520,14 @@ public class DriverSpy implements Driver
 	 * Get the minor version of the driver. This call will be delegated to the
 	 * underlying driver that is being spied upon (if there is no underlying
 	 * driver found, then 0 will be returned.)
-	 * 
+	 *
 	 * @return the minor version of the JDBC driver.
 	 */
-	public int getMinorVersion()
-	{
-		if (lastUnderlyingDriverRequested == null)
-		{
+	@Override
+	public int getMinorVersion() {
+		if (lastUnderlyingDriverRequested == null) {
 			return 0;
-		}
-		else
-		{
+		} else {
 			return lastUnderlyingDriverRequested.getMinorVersion();
 		}
 	}
@@ -634,12 +536,12 @@ public class DriverSpy implements Driver
 	 * Report whether the underlying driver is JDBC compliant. If there is no
 	 * underlying driver, false will be returned, because the driver cannot
 	 * actually do any work without an underlying driver.
-	 * 
+	 *
 	 * @return <code>true</code> if the underlying driver is JDBC Compliant;
-	 *         <code>false</code> otherwise.
+	 * <code>false</code> otherwise.
 	 */
-	public boolean jdbcCompliant()
-	{
+	@Override
+	public boolean jdbcCompliant() {
 		return lastUnderlyingDriverRequested != null &&
 			lastUnderlyingDriverRequested.jdbcCompliant();
 	}
@@ -647,23 +549,18 @@ public class DriverSpy implements Driver
 	/**
 	 * Returns true if this is a <code>jdbc:log4</code> URL and if the URL is for
 	 * an underlying driver that this DriverSpy can spy on.
-	 * 
+	 *
 	 * @param url JDBC URL.
-	 * 
 	 * @return true if this Driver can handle the URL.
-	 * 
 	 * @throws SQLException if a database access error occurs
 	 */
-	public boolean acceptsURL(String url) throws SQLException
-	{
+	@Override
+	public boolean acceptsURL(String url) throws SQLException {
 		Driver d = getUnderlyingDriver(url);
-		if (d != null)
-		{
+		if (d != null) {
 			lastUnderlyingDriverRequested = d;
 			return true;
-		}
-		else
-		{
+		} else {
 			return false;
 		}
 	}
@@ -671,30 +568,24 @@ public class DriverSpy implements Driver
 	/**
 	 * Given a <code>jdbc:log4</code> type URL, find the underlying real driver
 	 * that accepts the URL.
-	 * 
+	 *
 	 * @param url JDBC connection URL.
-	 * 
 	 * @return Underlying driver for the given URL. Null is returned if the URL is
-	 *         not a <code>jdbc:log4</code> type URL or there is no underlying
-	 *         driver that accepts the URL.
-	 * 
+	 * not a <code>jdbc:log4</code> type URL or there is no underlying
+	 * driver that accepts the URL.
 	 * @throws SQLException if a database access error occurs.
 	 */
-	private Driver getUnderlyingDriver(String url) throws SQLException
-	{
-		if (url.startsWith("jdbc:log4"))
-		{
+	private Driver getUnderlyingDriver(String url) throws SQLException {
+		if (url.startsWith("jdbc:log4")) {
 			url = url.substring(9);
 
 			Enumeration e = DriverManager.getDrivers();
 
 			Driver d;
-			while (e.hasMoreElements())
-			{
+			while (e.hasMoreElements()) {
 				d = (Driver) e.nextElement();
 
-				if (d.acceptsURL(url))
-				{
+				if (d.acceptsURL(url)) {
 					return d;
 				}
 			}
@@ -707,22 +598,19 @@ public class DriverSpy implements Driver
 	 * DriverSpy is spying on. If logging is not enabled, an actual Connection to
 	 * the database returned. If logging is enabled, a ConnectionSpy object which
 	 * wraps the real Connection is returned.
-	 * 
-	 * @param url JDBC connection URL .
+	 *
+	 * @param url  JDBC connection URL .
 	 * @param info a list of arbitrary string tag/value pairs as connection
-	 *        arguments. Normally at least a "user" and "password" property should
-	 *        be included.
-	 * 
+	 *             arguments. Normally at least a "user" and "password" property should
+	 *             be included.
 	 * @return a <code>Connection</code> object that represents a connection to
-	 *         the URL.
-	 * 
+	 * the URL.
 	 * @throws SQLException if a database access error occurs
 	 */
-	public Connection connect(String url, Properties info) throws SQLException
-	{
+	@Override
+	public Connection connect(String url, Properties info) throws SQLException {
 		Driver d = getUnderlyingDriver(url);
-		if (d == null)
-		{
+		if (d == null) {
 			return null;
 		}
 
@@ -733,56 +621,57 @@ public class DriverSpy implements Driver
 		lastUnderlyingDriverRequested = d;
 		Connection c = d.connect(url, info);
 
-		if (c == null)
-		{
+		if (c == null) {
 			throw new SQLException("invalid or unknown driver url: " + url);
 		}
-		if (log.isJdbcLoggingEnabled())
-		{
+		if (log.isJdbcLoggingEnabled()) {
 			ConnectionSpy cspy = new ConnectionSpy(c);
 			RdbmsSpecifics r = null;
 			String dclass = d.getClass().getName();
-			if (dclass != null && dclass.length() > 0)
-			{
+			if (dclass != null && dclass.length() > 0) {
 				r = (RdbmsSpecifics) rdbmsSpecifics.get(dclass);
 			}
 
-			if (r == null)
-			{
+			if (r == null) {
 				r = defaultRdbmsSpecifics;
 			}
 			cspy.setRdbmsSpecifics(r);
 			return cspy;
-		}
-		else
-		{
+		} else {
 			return c;
 		}
 	}
 
 	/**
 	 * Gets information about the possible properties for the underlying driver.
-	 * 
-	 * @param url the URL of the database to which to connect
-	 * 
+	 *
+	 * @param url  the URL of the database to which to connect
 	 * @param info a proposed list of tag/value pairs that will be sent on connect
-	 *        open
+	 *             open
 	 * @return an array of <code>DriverPropertyInfo</code> objects describing
-	 *         possible properties. This array may be an empty array if no
-	 *         properties are required.
-	 * 
+	 * possible properties. This array may be an empty array if no
+	 * properties are required.
 	 * @throws SQLException if a database access error occurs
 	 */
+	@Override
 	public DriverPropertyInfo[] getPropertyInfo(String url, Properties info)
-		throws SQLException
-	{
+		throws SQLException {
 		Driver d = getUnderlyingDriver(url);
-		if (d == null)
-		{
+		if (d == null) {
 			return new DriverPropertyInfo[0];
 		}
 
 		lastUnderlyingDriverRequested = d;
 		return d.getPropertyInfo(url, info);
 	}
+
+	@Override
+	public Logger getParentLogger() throws SQLFeatureNotSupportedException {
+		if (lastUnderlyingDriverRequested == null) {
+			return null;
+		} else {
+			return lastUnderlyingDriverRequested.getParentLogger();
+		}
+	}
+
 }

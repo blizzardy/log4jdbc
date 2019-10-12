@@ -1,12 +1,12 @@
 /**
  * Copyright 2007-2015 Arthur Blake
- *
+ * <p>
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
+ * <p>
+ * http://www.apache.org/licenses/LICENSE-2.0
+ * <p>
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -18,23 +18,19 @@ package net.sf.log4jdbc;
 /**
  * Static utility methods for use throughout the project.
  */
-public class Utilities
-{
+public class Utilities {
 	/**
 	 * Right justify a field within a certain number of spaces.
 	 * @param fieldSize field size to right justify field within.
 	 * @param field contents to right justify within field.
 	 * @return the field, right justified within the requested size.
 	 */
-	public static String rightJustify(int fieldSize, String field)
-	{
-		if (field == null)
-		{
+	public static String rightJustify(int fieldSize, String field) {
+		if (field == null) {
 			field = "";
 		}
 		StringBuffer output = new StringBuffer();
-		for (int i = 0, j = fieldSize - field.length(); i < j; i++)
-		{
+		for (int i = 0, j = fieldSize - field.length(); i < j; i++) {
 			output.append(' ');
 		}
 		output.append(field);
@@ -46,15 +42,12 @@ public class Utilities
 	 * @param s input String to trim.
 	 * @return output trimmed string.
 	 */
-	public static String rtrim(String s)
-	{
-		if (s == null)
-		{
+	public static String rtrim(String s) {
+		if (s == null) {
 			return null;
 		}
 		int i = s.length() - 1;
-		while (i >= 0 && Character.isWhitespace(s.charAt(i)))
-		{
+		while (i >= 0 && Character.isWhitespace(s.charAt(i))) {
 			i--;
 		}
 		return s.substring(0, i + 1);
